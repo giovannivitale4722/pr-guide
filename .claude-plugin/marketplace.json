@@ -1,0 +1,12 @@
+{
+  "name": "pr-guide",
+  "description": "Guided reviews for big pull requests",
+  "owner": { "name": "Giovanni Vitale" },
+  "plugins": [
+    {
+      "name": "pr-guide",
+      "source": "./",
+      "description": "Break a GitHub pull request into an overview and reviewable chapters."
+    }
+  ]
+}

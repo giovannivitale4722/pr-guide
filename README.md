@@ -28,21 +28,37 @@ These choices follow published research on splitting tangled changes, ordering c
 
 ## Use it in Claude Code
 
-The quickest way is to copy the skill into your personal skills folder:
+Install it as a plugin, from inside Claude Code:
+
+```
+/plugin marketplace add giovannivitale4722/pr-guide
+/plugin install pr-guide@pr-guide
+```
+
+Or from your shell: `claude plugin marketplace add giovannivitale4722/pr-guide`, then `claude plugin install pr-guide@pr-guide`.
+
+You need Node 18 or later and the GitHub CLI logged in (`gh auth login`). Then, in any repo:
+
+```
+/pr-guide:pr-guide 123
+/pr-guide:pr-guide https://github.com/owner/repo/pull/123
+/pr-guide:pr-guide owner/repo#123
+```
+
+With no argument it uses the PR for the current branch. You can also just ask Claude to "walk me through PR 123".
+
+To update later: `claude plugin marketplace update pr-guide`, then `claude plugin update pr-guide@pr-guide`.
+
+<details><summary>Without the plugin system</summary>
+
+Copy the skill folder into your personal skills, and it runs as plain `/pr-guide 123`:
 
 ```bash
-cp -R skills/pr-guide ~/.claude/skills/pr-guide
+git clone https://github.com/giovannivitale4722/pr-guide
+cp -R pr-guide/skills/pr-guide ~/.claude/skills/pr-guide
 ```
 
-The folder is also laid out as a Claude Code plugin (`.claude-plugin/plugin.json`), so you can add it to a plugin marketplace later and share it with a team.
-
-Then, in any repo with `gh` logged in:
-
-```
-/pr-guide 123
-/pr-guide https://github.com/owner/repo/pull/123
-/pr-guide owner/repo#123
-```
+</details>
 
 ## Use it as a GitHub Action
 
