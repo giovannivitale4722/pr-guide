@@ -207,8 +207,9 @@ try {
 } catch (err) {
   if (err instanceof StopError) console.error(`pr-guide: ${err.message}`);
   else if (err instanceof Anthropic.RateLimitError) console.error("pr-guide: rate limited by the Claude API; re-run the job later.");
-  else if (err instanceof Anthropic.AuthenticationError) console.error("pr-guide: the ANTHROPIC_API_KEY secret is missing or invalid.");
-  else if (err instanceof Anthropic.APIError) console.error(`pr-guide: Claude API error ${err.status}: ${err.message}`);
+  else if (err instanceof Anthropic.AuthenticationError) console.error("pr-guide: the Claude API rejected the ANTHROPIC_API_KEY secret. Use an API key from console.anthropic.com (it starts with sk-ant-api), pasted with no quotes or spaces.");
+  else if (err instanceof Anthropic.APIError && /credit balance/i.test(err.error?.error?.message || "")) console.error("pr-guide: the Claude API account behind ANTHROPIC_API_KEY is out of credit. Add credits at console.anthropic.com under Plans & Billing, then re-run the job.");
+  else if (err instanceof Anthropic.APIError) console.error(`pr-guide: Claude API error ${err.status}: ${err.error?.error?.message || err.message}`);
   else console.error(`pr-guide: ${err.message}`);
   process.exit(1);
 }
