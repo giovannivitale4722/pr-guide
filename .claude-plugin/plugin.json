@@ -1,0 +1,6 @@
+{
+  "name": "pr-guide",
+  "version": "0.1.0",
+  "description": "Break a GitHub pull request into an overview and reviewable chapters.",
+  "author": { "name": "Giovanni Vitale" }
+}

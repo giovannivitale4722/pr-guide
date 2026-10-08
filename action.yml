@@ -1,0 +1,101 @@
+name: PR guide
+description: Break a pull request into an overview and reviewable chapters, posted as a PR comment.
+branding:
+  icon: book-open
+  color: blue
+
+inputs:
+  anthropic-api-key:
+    description: Claude API key. Store it as a repository secret.
+    required: true
+  github-token:
+    description: Token used to read the PR and write the comment.
+    default: ${{ github.token }}
+  model:
+    description: Claude model that groups the diff into chapters.
+    default: claude-opus-5-5
+  effort:
+    description: Effort for grouping (low, medium, high, xhigh, max). Thinking and output time dominate the run, so this is the main speed lever.
+    default: medium
+  explain-model:
+    description: Model that writes chapter explanations in parallel on larger PRs. Defaults to the grouping model; claude-sonnet-5-5 is faster.
+    default: ""
+  explain-effort:
+    description: Effort for chapter explanations.
+    default: low
+  speed:
+    description: "`fast` uses fast mode on Opus (up to 2.5x output speed at 2x price; research preview, Claude API only). Otherwise `standard`."
+    default: standard
+  comment:
+    description: Post or update the guide as a PR comment.
+    default: "true"
+
+outputs:
+  html:
+    description: Path to the rendered interactive guide.
+    value: ${{ steps.render.outputs.html }}
+  guide-url:
+    description: URL of the uploaded guide page. It opens in the browser for anyone signed in with read access to the repo.
+    value: ${{ steps.upload.outputs.artifact-url }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install
+      shell: bash
+      run: npm install --prefix "$GITHUB_ACTION_PATH/skills/pr-guide/scripts" --no-audit --no-fund --silent
+
+    - name: Fetch PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: node "$GITHUB_ACTION_PATH/skills/pr-guide/scripts/prguide.mjs" fetch "$PR" --out "$RUNNER_TEMP/pr-guide"
+
+    - name: Group into chapters
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        MODEL: ${{ inputs.model }}
+        EFFORT: ${{ inputs.effort }}
+        EXPLAIN_MODEL: ${{ inputs.explain-model || inputs.model }}
+        EXPLAIN_EFFORT: ${{ inputs.explain-effort }}
+        SPEED: ${{ inputs.speed }}
+      run: |
+        node "$GITHUB_ACTION_PATH/skills/pr-guide/scripts/group.mjs" "$RUNNER_TEMP/pr-guide" \
+          --model "$MODEL" --effort "$EFFORT" --explain-model "$EXPLAIN_MODEL" --explain-effort "$EXPLAIN_EFFORT" --speed "$SPEED"
+
+    - name: Render
+      id: render
+      shell: bash
+      env:
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        node "$GITHUB_ACTION_PATH/skills/pr-guide/scripts/prguide.mjs" render "$RUNNER_TEMP/pr-guide" --guide-url "$RUN_URL"
+        # An unzipped artifact is named after its file, so give the file the PR's number.
+        cp "$RUNNER_TEMP/pr-guide/guide.html" "$RUNNER_TEMP/pr-guide/pr-guide-$PR.html"
+        echo "html=$RUNNER_TEMP/pr-guide/pr-guide-$PR.html" >> "$GITHUB_OUTPUT"
+        cat "$RUNNER_TEMP/pr-guide/comment.md" >> "$GITHUB_STEP_SUMMARY"
+
+    # archive: false uploads the page as-is, so the comment's link opens it in
+    # the browser instead of downloading a zip.
+    - name: Upload interactive guide
+      id: upload
+      uses: actions/upload-artifact@v7
+      with:
+        path: ${{ steps.render.outputs.html }}
+        archive: false
+
+    - name: Comment on PR
+      if: inputs.comment == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GUIDE_URL: ${{ steps.upload.outputs.artifact-url }}
+      run: node "$GITHUB_ACTION_PATH/skills/pr-guide/scripts/prguide.mjs" comment "$RUNNER_TEMP/pr-guide" --guide-url "$GUIDE_URL"

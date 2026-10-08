@@ -1,0 +1,9 @@
+{
+  "name": "pr-guide-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Only group.mjs (used by the GitHub Action) needs these dependencies; prguide.mjs runs on plain Node.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.132.0"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "summary": "Hono's build used to run two standalone Node scripts around `vp pack`: one validated `package.json` against `jsr.json` exports, and another stripped `#private` fields from the emitted `.d.ts` files. This PR moves both jobs into `vp pack` plugins in `vite.config.ts`, so they run inside the bundler. It also swaps the `oxc-parser` dependency for `rolldown`, which already powers the build.",
+  "steps": [
+    "`pnpm build` now runs `vp pack` directly, with no pre- or post-build scripts.",
+    "In the ESM build, the `buildStart` hook of `validatePackageExportsPlugin` checks that `package.json` and `jsr.json` export the same entries.",
+    "In the types build, the `renderChunk` hook of `removeDtsPrivateFieldsPlugin` parses each `.d.ts` chunk with `rolldown/utils` and removes `#private` class fields.",
+    "The old `build/*.ts` scripts and their tests are deleted, and `oxc-parser` is replaced by `rolldown`."
+  ],
+  "flow": {
+    "caption": "What runs during pnpm build",
+    "nodes": [
+      { "id": "build", "label": "pnpm build", "added": false, "chapter": 0 },
+      { "id": "pack", "label": "vp pack", "added": false, "chapter": 0 },
+      { "id": "validate", "label": "validatePackageExportsPlugin", "added": true, "chapter": 2 },
+      { "id": "esm", "label": "ESM build", "added": false, "chapter": 0 },
+      { "id": "types", "label": "types build", "added": false, "chapter": 0 },
+      { "id": "strip", "label": "removeDtsPrivateFieldsPlugin", "added": true, "chapter": 1 },
+      { "id": "publint", "label": "publint", "added": false, "chapter": 0 }
+    ],
+    "edges": [
+      { "from": "build", "to": "pack", "label": "" },
+      { "from": "pack", "to": "validate", "label": "buildStart" },
+      { "from": "validate", "to": "esm", "label": "" },
+      { "from": "pack", "to": "types", "label": "" },
+      { "from": "types", "to": "strip", "label": "renderChunk" },
+      { "from": "esm", "to": "publint", "label": "" },
+      { "from": "strip", "to": "publint", "label": "" }
+    ]
+  },
+  "chapters": [
+    {
+      "title": "Strip private fields in a plugin",
+      "explanation": "`removeDtsPrivateFieldsPlugin` replaces `build/remove-private-fields.ts`. It runs in `renderChunk` for `.d.ts` output only, parses the chunk with `parse` from `rolldown/utils`, and removes each `PropertyDefinition` whose key is a `PrivateIdentifier`. The plugin is attached only to the `dist/types` config, where `emitDtsOnly` is set.\n\nOne behaviour change: the old script replaced `#private;` with spaces so offsets stayed stable, but `ms.remove()` deletes the text. That's fine for declaration files unless something relies on the old offsets, such as sourcemaps for the `.d.ts` files. The unit test for this logic is deleted, not moved, so check whether that coverage is still wanted.",
+      "hunks": ["f9h1", "f9h2", "f9h4", "f2h1", "f1h1"]
+    },
+    {
+      "title": "Validate exports at build start",
+      "explanation": "`validatePackageExportsPlugin` inlines the old `validateExports` helper almost verbatim and runs it in `buildStart`, comparing `package.json` and `jsr.json` exports in both directions. It is registered only on the ESM config; the comment on the CJS config explains why it is skipped there.\n\nCheck the JSON imports: `await import('./package.json', { with: { type: 'json' } })` returns a module namespace, so `pkgJson.exports` relies on the bundler exposing named keys from JSON. The original read `.exports` from a parsed object, and `pkgJson.default.exports` would be the safe form. Like chapter 1, the old unit test (`validate-exports.test.ts`) is deleted without a replacement.",
+      "hunks": ["f9h3", "f5h1", "f4h1"]
+    },
+    {
+      "title": "Drop the old build scripts",
+      "explanation": "The `build` script loses the `validate-package-exports.ts` and `strip-private-fields.ts` steps around `vp pack`, and both entry scripts are deleted. `oxc-parser` is replaced with `rolldown` in `devDependencies`; the lockfile changes are in the last chapter.",
+      "hunks": ["f7h1", "f6h1", "f3h1", "f7h2"]
+    }
+  ]
+}
