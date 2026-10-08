@@ -19,6 +19,6 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
-      - uses: YOUR-GITHUB-USER/pr-guide@v1
+      - uses: giovannivitale4722/pr-guide@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

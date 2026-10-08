@@ -9,23 +9,6 @@ It works in two places, sharing the same code:
 | **Claude Code skill** (`/pr-guide 123`) | Claude, in your session | Interactive page (published as an Artifact), optional PR comment |
 | **GitHub Action** | Claude API (`claude-opus-5-5`) | PR comment with collapsible chapters and a Mermaid diagram, plus the interactive page as a workflow artifact |
 
-## How it works
-
-```
-fetch + split into hunks ─► evidence index ─► group ─► check ─► review (if flagged) ─► explain chapters ─► render
-      prguide.mjs fetch                       skill or group.mjs                                  prguide.mjs render
-```
-
-1. **Fetch** splits the diff into hunks (`f1h1`, `f1h2`, …) and computes an evidence index: names defined in one hunk and used in others, test files paired with the source they cover, and whitespace- or comment-only hunks. The model gets it as hints.
-2. **Group** puts hunks into chapters by intent. Tests go with the code they cover, definitions come before their uses, and the riskier chapter comes first when two don't depend on each other. Chapter size, not a fixed count, decides how many chapters there are.
-3. **Check** flags problems without a model call: unplaced or repeated hunks, chapters over about 400 changed lines, tests separated from their code, chapters that use a name a later chapter defines, and explanations that name identifiers found nowhere in the PR.
-4. **Review** runs only when something is flagged: one more call fixes the grouping.
-5. **Explain.** On larger PRs, the grouping call returns only a compact skeleton, and each chapter's explanation is then written by its own call, in parallel.
-
-The coverage check still guarantees that a reviewer never misses part of the diff. Every hunk lands in exactly one chapter, anything left over goes into "Remaining changes", and lockfiles and snapshots go into "Generated files".
-
-These choices follow published research on splitting tangled changes, ordering code for review, and LLM latency. The full write-up is in [`docs/research.md`](docs/research.md).
-
 ## Use it in Claude Code
 
 Install it as a plugin, from inside Claude Code:
@@ -66,6 +49,8 @@ On every pull request, the Action reads the diff, asks Claude to group it into c
 
 ### Set it up for a repo
 
+You need a Claude API key from [console.anthropic.com](https://console.anthropic.com) (it starts with `sk-ant-api`). API usage is billed to that account, separately from any Claude subscription, so the account needs credit.
+
 1. **Add your Claude API key as a secret.** In the repo: Settings → Secrets and variables → Actions → New repository secret, named `ANTHROPIC_API_KEY`. Or from a terminal:
 
    ```bash
@@ -90,7 +75,7 @@ On every pull request, the Action reads the diff, asks Claude to group it into c
        if: ${{ !github.event.pull_request.draft }}
        runs-on: ubuntu-latest
        steps:
-         - uses: YOUR-GITHUB-USER/pr-guide@v1
+         - uses: giovannivitale4722/pr-guide@v1
            with:
              anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
    ```
@@ -115,6 +100,23 @@ On every pull request, the Action reads the diff, asks Claude to group it into c
 - **Where the page lives:** the guide page is uploaded as an unzipped workflow artifact. It follows the repo's access rules and expires with its artifacts (90 days by default). It's also listed under the run's artifacts.
 - **Cost and time:** small PRs (under about 20k tokens) use one call. Larger PRs use one grouping call plus one call per chapter, run in parallel. A review call runs only when the check flags something. Each run writes `run.json` with the time and tokens of every call.
 - **Very large PRs** are clipped per hunk to fit, and the model is told which hunks were clipped.
+
+## How it works
+
+```
+fetch + split into hunks ─► evidence index ─► group ─► check ─► review (if flagged) ─► explain chapters ─► render
+      prguide.mjs fetch                       skill or group.mjs                                  prguide.mjs render
+```
+
+1. **Fetch** splits the diff into hunks (`f1h1`, `f1h2`, …) and computes an evidence index: names defined in one hunk and used in others, test files paired with the source they cover, and whitespace- or comment-only hunks. The model gets it as hints.
+2. **Group** puts hunks into chapters by intent. Tests go with the code they cover, definitions come before their uses, and the riskier chapter comes first when two don't depend on each other. Chapter size, not a fixed count, decides how many chapters there are.
+3. **Check** flags problems without a model call: unplaced or repeated hunks, chapters over about 400 changed lines, tests separated from their code, chapters that use a name a later chapter defines, and explanations that name identifiers found nowhere in the PR.
+4. **Review** runs only when something is flagged: one more call fixes the grouping.
+5. **Explain.** On larger PRs, the grouping call returns only a compact skeleton, and each chapter's explanation is then written by its own call, in parallel.
+
+The coverage check still guarantees that a reviewer never misses part of the diff. Every hunk lands in exactly one chapter, anything left over goes into "Remaining changes", and lockfiles and snapshots go into "Generated files".
+
+These choices follow published research on splitting tangled changes, ordering code for review, and LLM latency. The full write-up is in [`docs/research.md`](docs/research.md).
 
 ## Measure before changing defaults
 
